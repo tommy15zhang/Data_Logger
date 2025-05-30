@@ -1,5 +1,11 @@
 # Data_Logger
 
+# Application Perspective
+
+Different plants have different perferred temperature and humidity. We can fetch a list of plants and let the farmer to choose which plants they want, and place the data logger near the plant. We also provide advice to what to do, like turn on the heater or remove the heater. 
+
+Also another interesting mode is to run the arduino for a specific amount of time, and then generate a report in pdf
+
 Data will be sent from the Arduino to the computer in this order
 
 Temp = ,
