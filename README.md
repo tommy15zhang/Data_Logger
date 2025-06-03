@@ -1,6 +1,8 @@
 # Data_Logger
 
 # Application Perspective
+run a week long reading, and based on the data, give some suggestion to farmer what plants he/she can plant here.
+
 
 Different plants have different perferred temperature and humidity. We can fetch a list of plants and let the farmer to choose which plants they want, and place the data logger near the plant. We also provide advice to what to do, like turn on the heater or remove the heater. 
 
