@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Arduino Environment Monitor
 
 ## Overview
