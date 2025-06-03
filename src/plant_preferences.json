@@ -1,0 +1,144 @@
+{
+  "plants": [
+    {
+      "name": "Tomato",
+      "temperature_low": 18,
+      "temperature_high": 27,
+      "humidity_low": 60,
+      "humidity_high": 70,
+      "air_quality_score_min": 2,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Lettuce",
+      "temperature_low": 10,
+      "temperature_high": 21,
+      "humidity_low": 60,
+      "humidity_high": 70,
+      "air_quality_score_min": 2,
+      "moisture_low": 500,
+      "moisture_high": 700
+    },
+    {
+      "name": "Cucumber",
+      "temperature_low": 20,
+      "temperature_high": 30,
+      "humidity_low": 60,
+      "humidity_high": 80,
+      "air_quality_score_min": 2,
+      "moisture_low": 500,
+      "moisture_high": 700
+    },
+    {
+      "name": "Strawberry",
+      "temperature_low": 18,
+      "temperature_high": 25,
+      "humidity_low": 60,
+      "humidity_high": 70,
+      "air_quality_score_min": 2,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Spinach",
+      "temperature_low": 10,
+      "temperature_high": 20,
+      "humidity_low": 50,
+      "humidity_high": 70,
+      "air_quality_score_min": 1,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Orchid",
+      "temperature_low": 18,
+      "temperature_high": 30,
+      "humidity_low": 60,
+      "humidity_high": 80,
+      "air_quality_score_min": 3,
+      "moisture_low": 300,
+      "moisture_high": 500
+    },
+    {
+      "name": "Basil",
+      "temperature_low": 20,
+      "temperature_high": 30,
+      "humidity_low": 50,
+      "humidity_high": 60,
+      "air_quality_score_min": 2,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Succulents",
+      "temperature_low": 18,
+      "temperature_high": 27,
+      "humidity_low": 10,
+      "humidity_high": 30,
+      "air_quality_score_min": 1,
+      "moisture_low": 200,
+      "moisture_high": 350
+    },
+    {
+      "name": "Fern",
+      "temperature_low": 15,
+      "temperature_high": 24,
+      "humidity_low": 60,
+      "humidity_high": 80,
+      "air_quality_score_min": 3,
+      "moisture_low": 600,
+      "moisture_high": 800
+    },
+    {
+      "name": "Peace Lily",
+      "temperature_low": 18,
+      "temperature_high": 27,
+      "humidity_low": 50,
+      "humidity_high": 60,
+      "air_quality_score_min": 3,
+      "moisture_low": 500,
+      "moisture_high": 700
+    },
+    {
+      "name": "Rose",
+      "temperature_low": 15,
+      "temperature_high": 26,
+      "humidity_low": 40,
+      "humidity_high": 60,
+      "air_quality_score_min": 2,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Chili Pepper",
+      "temperature_low": 20,
+      "temperature_high": 30,
+      "humidity_low": 50,
+      "humidity_high": 70,
+      "air_quality_score_min": 2,
+      "moisture_low": 400,
+      "moisture_high": 600
+    },
+    {
+      "name": "Mint",
+      "temperature_low": 15,
+      "temperature_high": 25,
+      "humidity_low": 50,
+      "humidity_high": 70,
+      "air_quality_score_min": 1,
+      "moisture_low": 500,
+      "moisture_high": 700
+    },
+    {
+      "name": "Potato",
+      "temperature_low": 15,
+      "temperature_high": 22,
+      "humidity_low": 60,
+      "humidity_high": 80,
+      "air_quality_score_min": 1,
+      "moisture_low": 400,
+      "moisture_high": 600
+    }
+  ]
+}
