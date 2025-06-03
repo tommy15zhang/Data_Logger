@@ -8,31 +8,28 @@ Different plants have different perferred temperature and humidity. We can fetch
 
 Also another interesting mode is to run the arduino for a specific amount of time, and then generate a report in pdf
 
-Data will be sent from the Arduino to the computer in this order
+Data will be sent from the Arduino to the computer in this format
 
-Temp = ,
-
-Humidity = ,
-
-Air_quality = ,
-
-quality = , 
-
-Avg_temp = ,
-
-Avg_humidity = ,
-
-Avg_air_qual = ,
-
-Temp_too_low = ,
-
-Temp_too _high = ,
-
-Humidity_too_low = ,
-
-Humidity_too_high = ,
-
-Air_quality_poor =
+    
+    Serial.print(temp);
+    Serial.print(",");
+    Serial.print(humidity);
+    Serial.print(",");
+    Serial.print(quality);
+    Serial.print(",");
+    Serial.print(tempAverage);
+    Serial.print(",");
+    Serial.print(humidityAverage);
+    Serial.print(",");
+    Serial.print(tempTooHigh);
+    Serial.print(",");
+    Serial.print(tempTooLow);
+    Serial.print(",");
+    Serial.print(humidityTooLow);
+    Serial.print(",");
+    Serial.print(humidityTooHigh);
+    Serial.print(",");
+    Serial.println(airQualityIssue);
 
 
 for quality, it gives a 0,1,2,3 value where
