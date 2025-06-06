@@ -9,6 +9,11 @@
 
 
 ## Arduino-Host Communication Protocol
+
+Host can send the following command `d` in serial to make arduino into analysis mode, current default is to run weekly data. Once the arduino is finished
+
+
+
 Data will be sent from the Arduino to the computer in this format
 ```cpp
     Serial.print(temp);
@@ -38,12 +43,6 @@ FORCE_SIGNAL   = 0;
 HIGH_POLLUTION = 1;
 LOW_POLLUTION = 2;
 FRESH_AIR = 3;
-
-I'm not sure what force_signal is but I believe also high pollution. I could try converting this to be bad okay good that is sent but sending as a flag that is then processed after would be more efficient in terms of data.
-
-
-
-It is also worth considering what we want the flags could be. It can be either the values being too high/low or the changes that need to be made. These are mostly the same though tbh
 
 The first values are actual values and the last 5 will be a flag where it indicates any issue with the current environment
 
