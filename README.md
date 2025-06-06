@@ -4,14 +4,13 @@
 ## Current Progress
 
 - [ ] run a week long reading, and based on the data, give some suggestion to farmer what plants he/she can plant here.
+- [x] Different plants have different perferred temperature and humidity. We can fetch a list of plants and let the farmer to choose which plants they want, and place the data logger near the plant. We also provide advice to what to do, like turn on the heater or remove the heater. 
+- [ ] Also another interesting mode is to run the arduino for a specific amount of time, and then generate a report in pdf
 
-Different plants have different perferred temperature and humidity. We can fetch a list of plants and let the farmer to choose which plants they want, and place the data logger near the plant. We also provide advice to what to do, like turn on the heater or remove the heater. 
 
-Also another interesting mode is to run the arduino for a specific amount of time, and then generate a report in pdf
-
+## Arduino-Host Communication Protocol
 Data will be sent from the Arduino to the computer in this format
-
-    
+```cpp
     Serial.print(temp);
     Serial.print(",");
     Serial.print(humidity);
@@ -31,7 +30,7 @@ Data will be sent from the Arduino to the computer in this format
     Serial.print(humidityTooHigh);
     Serial.print(",");
     Serial.println(airQualityIssue);
-
+```
 
 for quality, it gives a 0,1,2,3 value where
 
