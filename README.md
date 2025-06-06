@@ -22,7 +22,7 @@ Each line will have up to 84 values (exactly 84 after it has been running for 1 
 
 
 
-Data will be sent from the Arduino to the computer in this format
+Data will be sent from the Arduino approximately every 1-2 seconds to the computer in this format by default. This is unaffected by the weekly data mentioned aboce
 ```cpp
     Serial.print(temp);
     Serial.print(",");
