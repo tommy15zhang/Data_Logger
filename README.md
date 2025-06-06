@@ -10,7 +10,15 @@
 
 ## Arduino-Host Communication Protocol
 
-Host can send the following command `d` in serial to make arduino into analysis mode, current default is to run weekly data. Once the arduino is finished
+Host can send the following command `d` in serial to retrieve data from the previous week. The arduino will return the following as an example file
+
+```cpp
+24.14,23.84,23.35,22.93,22.65,22.50,22.34,22.26...        # Temperature readings
+57.22,53.53,54.25,50.45,52.75,51.60,52.00,52.80...        # Humidity readings
+```
+This will hopefully have another line added corresponding to moisture readings.
+Each line will have up to 84 values (exactly 84 after it has been running for 1 week)
+
 
 
 
