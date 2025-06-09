@@ -24,15 +24,20 @@ Each line will have up to 84 values (exactly 84 after it has been running for 1 
 
 Data will be sent from the Arduino approximately every 1-2 seconds to the computer in this format by default. This is unaffected by the weekly data mentioned aboce
 ```cpp
+
     Serial.print(temp);
     Serial.print(",");
     Serial.print(humidity);
+    Serial.print(",");
+    Serial.print(moisture);
     Serial.print(",");
     Serial.print(quality);
     Serial.print(",");
     Serial.print(tempAverage);
     Serial.print(",");
     Serial.print(humidityAverage);
+    Serial.print(",");
+    Serial.print(moistureAverage);
     Serial.print(",");
     Serial.print(tempTooHigh);
     Serial.print(",");
@@ -42,7 +47,10 @@ Data will be sent from the Arduino approximately every 1-2 seconds to the comput
     Serial.print(",");
     Serial.print(humidityTooHigh);
     Serial.print(",");
+    Serial.print(soilTooDry);
+    Serial.print(",");
     Serial.println(airQualityIssue);
+
 ```
 
 for quality, it gives a 0,1,2,3 value where
