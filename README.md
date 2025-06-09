@@ -50,7 +50,8 @@ Datalogger
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for more details.
-=======
+
+
 # Data_Logger
 
 # Application Perspective
@@ -103,4 +104,3 @@ The first values are actual values and the last 5 will be a flag where it indica
 The actual data will look like this
 
 25,67,40,22,50,38,0,0,1,0,1
->>>>>>> e557c91f802cca9ae43ab5c4af01829adcd07233

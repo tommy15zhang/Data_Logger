@@ -90,3 +90,40 @@ class StatusCard(QtWidgets.QFrame):
         self.icon.setStyleSheet(
             f"font-size:48px; color:{'#4CAF50' if ok else '#F44336'};"
         )
+
+
+class SerialMonitorWidget(QtWidgets.QGroupBox):
+    """A widget for displaying and sending serial data."""
+    def __init__(self, parent=None):
+        super().__init__("Serial Monitor", parent)
+        layout = QtWidgets.QVBoxLayout(self)
+        self.serial_text = QtWidgets.QTextEdit()
+        self.serial_text.setReadOnly(True)
+        self.serial_text.setFixedHeight(120)
+        input_layout = QtWidgets.QHBoxLayout()
+        self.serial_input = QtWidgets.QLineEdit()
+        self.serial_input.setPlaceholderText("Type message to send to Arduino...")
+        self.serial_send_btn = QtWidgets.QPushButton("Send")
+        input_layout.addWidget(self.serial_input)
+        input_layout.addWidget(self.serial_send_btn)
+        layout.addWidget(self.serial_text)
+        layout.addLayout(input_layout)
+        self.setLayout(layout)
+
+    def append_rx(self, msg):
+        self.serial_text.append(f"[RX] {msg}")
+
+    def append_tx(self, msg):
+        self.serial_text.append(f"[TX] {msg}")
+
+    def append_error(self, msg):
+        self.serial_text.append(f"[ERROR] {msg}")
+
+    def clear(self):
+        self.serial_text.clear()
+
+
+class MoistureCard(MetricCard):
+    def __init__(self):
+        super().__init__("Soil Moisture", "#8BC34A", "")
+        # You can adjust the accent color and unit as needed
