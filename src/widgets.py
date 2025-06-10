@@ -116,6 +116,9 @@ class SerialMonitorWidget(QtWidgets.QGroupBox):
     def append_tx(self, msg):
         self.serial_text.append(f"[TX] {msg}")
 
+    def append_info(self, msg):
+        self.serial_text.append(f"[INFO] {msg}")
+
     def append_error(self, msg):
         self.serial_text.append(f"[ERROR] {msg}")
 

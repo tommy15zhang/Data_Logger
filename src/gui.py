@@ -7,10 +7,166 @@ import pyqtgraph as pg
 from widgets import MetricCard, SerialMonitorWidget, MoistureCard
 import json
 import os
+from sklearn.linear_model import LinearRegression
+import datetime # Ensure datetime is imported at the top
+
+class AnalysisResultsDialog(QtWidgets.QDialog):
+    def __init__(self, avg_temp, avg_hum, avg_moist, avg_aq, 
+                 raw_temps, raw_hums, raw_moists, 
+                 suitable_plants, closest_plants_details, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Detailed Analysis Results")
+        self.setMinimumSize(1000, 950)
+        self.parent_window = parent
+
+        # Main layout for the dialog (will be set as the widget for QScrollArea)
+        main_layout = QtWidgets.QVBoxLayout()
+
+        # Summary Section
+        summary_group = QtWidgets.QGroupBox("Average Conditions")
+        summary_layout = QtWidgets.QFormLayout(summary_group)
+        summary_layout.addRow("Average Temperature:", QtWidgets.QLabel(f"{avg_temp:.1f}°C"))
+        summary_layout.addRow("Average Humidity:", QtWidgets.QLabel(f"{avg_hum:.1f}%"))
+        summary_layout.addRow("Average Moisture:", QtWidgets.QLabel(f"{avg_moist:.1f}"))
+        summary_layout.addRow("Air Quality Score:", QtWidgets.QLabel(f"{avg_aq}"))
+        main_layout.addWidget(summary_group)
+
+        # Time axis for 10-minute intervals
+        time_points = [i * 10 for i in range(len(raw_temps))]
+
+        # Temperature Plot (lines only, no markers)
+        self.raw_temps_plot = pg.PlotWidget()
+        self.raw_temps_plot.setTitle("Temperature Averages (10-minute intervals)")
+        self.raw_temps_plot.setLabel('left', 'Temperature', units='°C')
+        self.raw_temps_plot.setLabel('bottom', 'Time', units='minutes')
+        self.raw_temps_plot.plot(time_points, raw_temps, pen=pg.mkPen('#FF9800', width=2))
+        self.raw_temps_plot.setMinimumHeight(220)
+        self.raw_temps_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.raw_temps_plot.getPlotItem().getAxis('bottom').setStyle(showValues=True, autoExpandTextSpace=True)
+        main_layout.addWidget(self.raw_temps_plot)
+
+        # Humidity Plot (lines only, no markers)
+        self.raw_hums_plot = pg.PlotWidget()
+        self.raw_hums_plot.setTitle("Humidity Averages (10-minute intervals)")
+        self.raw_hums_plot.setLabel('left', 'Humidity', units='%')
+        self.raw_hums_plot.setLabel('bottom', 'Time', units='minutes')
+        self.raw_hums_plot.plot(time_points, raw_hums, pen=pg.mkPen('#2196F3', width=2))
+        self.raw_hums_plot.setMinimumHeight(220)
+        self.raw_hums_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.raw_hums_plot.getPlotItem().getAxis('bottom').setStyle(showValues=True, autoExpandTextSpace=True)
+        main_layout.addWidget(self.raw_hums_plot)
+
+        # Moisture Plot (lines only, no markers)
+        self.raw_moists_plot = pg.PlotWidget()
+        self.raw_moists_plot.setTitle("Moisture Averages (10-minute intervals)")
+        self.raw_moists_plot.setLabel('left', 'Moisture')
+        self.raw_moists_plot.setLabel('bottom', 'Time', units='minutes')
+        self.raw_moists_plot.plot(time_points, raw_moists, pen=pg.mkPen('#8BC34A', width=2))
+        self.raw_moists_plot.setMinimumHeight(220)
+        self.raw_moists_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.raw_moists_plot.getPlotItem().getAxis('bottom').setStyle(showValues=True, autoExpandTextSpace=True)
+        main_layout.addWidget(self.raw_moists_plot)
+
+        # Plant Suitability Section
+        plant_suitability_group = QtWidgets.QGroupBox("Plant Suitability")
+        plant_suitability_layout = QtWidgets.QVBoxLayout(plant_suitability_group)
+
+        if suitable_plants:
+            plant_suitability_layout.addWidget(QtWidgets.QLabel("<b>Perfectly Suitable Plants:</b>"))
+            list_widget = QtWidgets.QListWidget()
+            for plant_name in suitable_plants:
+                list_widget.addItem(plant_name)
+            plant_suitability_layout.addWidget(list_widget)
+        elif closest_plants_details:
+            plant_suitability_layout.addWidget(QtWidgets.QLabel("<b>No perfectly suitable plants found. Top 3 closest matches:</b>"))
+            table = QtWidgets.QTableWidget()
+            table.setColumnCount(3)
+            table.setHorizontalHeaderLabels(["Plant Name", "Match Score (out of 4)", "Details"])
+            table.setRowCount(len(closest_plants_details))
+            table.setMinimumHeight(250)
+            table.setAlternatingRowColors(False)  # Disable alternating to set all rows manually
+            for i, details in enumerate(closest_plants_details):
+                for j in range(3):
+                    item = None
+                    if j == 0:
+                        item = QtWidgets.QTableWidgetItem(details['name'])
+                    elif j == 1:
+                        item = QtWidgets.QTableWidgetItem(f"{details['score']}/4")
+                    elif j == 2:
+                        unmet_summary = []
+                        if not details['met_temp']:
+                            unmet_summary.append(f"Temp: {avg_temp:.1f}°C (Needs: {details['plant_temp_low']}-{details['plant_temp_high']}°C)")
+                        if not details['met_hum']:
+                            unmet_summary.append(f"Hum: {avg_hum:.1f}% (Needs: {details['plant_hum_low']}-{details['plant_hum_high']}%)")
+                        if not details['met_moist']:
+                            unmet_summary.append(f"Moist: {avg_moist:.1f} (Needs: {details['plant_moist_low']}-{details['plant_moist_high']})")
+                        if not details['met_aq']:
+                            unmet_summary.append(f"AQ: {avg_aq} (Needs >= {details['plant_aq_min']})")
+                        item = QtWidgets.QTableWidgetItem("; ".join(unmet_summary) if unmet_summary else "All conditions met")
+                    # Set a consistent background color for all rows
+                    item.setBackground(QtGui.QColor("#232834"))
+                    item.setForeground(QtGui.QColor("#e0e6ed"))
+                    table.setItem(i, j, item)
+            table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+            table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            for i in range(table.rowCount()):
+                table.setRowHeight(i, 60)
+            plant_suitability_layout.addWidget(table)
+        else:
+            plant_suitability_layout.addWidget(QtWidgets.QLabel("No plant data available or no matches found."))
+        main_layout.addWidget(plant_suitability_group)
+
+        # Timing info label at the very bottom
+        timing_label = QtWidgets.QLabel("Each point = 10 minutes, leftmost = oldest")
+        timing_label.setAlignment(QtCore.Qt.AlignCenter)
+        timing_label.setStyleSheet("color: #888; font-size: 13px; margin-top: 10px;")
+        main_layout.addWidget(timing_label)
+
+        # Button layout for OK and Reset
+        button_layout = QtWidgets.QHBoxLayout()
+        reset_button = QtWidgets.QPushButton("Reset Arduino Data")
+        reset_button.setToolTip("Send reset command to Arduino to clear stored data")
+        reset_button.setStyleSheet("QPushButton { background-color: #F44336; color: white; font-weight: bold; }")
+        reset_button.clicked.connect(self._reset_arduino_data)
+        button_layout.addWidget(reset_button)
+        button_layout.addStretch()
+        ok_button = QtWidgets.QPushButton("OK")
+        ok_button.clicked.connect(self.accept)
+        button_layout.addWidget(ok_button)
+        main_layout.addLayout(button_layout)
+
+        # Wrap the main layout in a scroll area for vertical scrolling only
+        scroll_area = QtWidgets.QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QtWidgets.QWidget()
+        scroll_content.setLayout(main_layout)
+        scroll_area.setWidget(scroll_content)
+        scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+
+        # Set the scroll area as the main layout
+        dialog_layout = QtWidgets.QVBoxLayout(self)
+        dialog_layout.addWidget(scroll_area)
+        self.setLayout(dialog_layout)
+
+    def _reset_arduino_data(self):
+        if self.parent_window and hasattr(self.parent_window, '_send_serial_message'):
+            try:
+                self.parent_window._send_serial_message('r', log_to_monitor=True)
+                QtWidgets.QMessageBox.information(self, "Reset Command Sent", 
+                    "Reset command 'r' has been sent to Arduino.\nArduino should respond with 'Reset data'.")
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Reset Failed", 
+                    f"Failed to send reset command: {str(e)}")
+        else:
+            QtWidgets.QMessageBox.warning(self, "Reset Failed", 
+                "Cannot send reset command - no connection to Arduino.")
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowTitle("🌿 Arduino Environment Monitor")
         self.resize(1100, 700)
 
@@ -18,7 +174,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.h_data = deque([0.0] * 50, maxlen=50)
         self.t_data = deque([0.0] * 50, maxlen=50)
         self.m_data = deque([0.0] * 50, maxlen=50)
-        self.timer = QtCore.QTimer(self, interval=200)
+        self.timer = QtCore.QTimer(self, interval=200) # Main timer for serial reads
         self.timer.timeout.connect(self._timer_tick)
 
         self._apply_dark_theme()
@@ -165,12 +321,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_btn = QtWidgets.QPushButton("Remove Plant")
         # Add Analysis button
         self.analysis_btn = QtWidgets.QPushButton("Analysis")
+        self.forecast_btn = QtWidgets.QPushButton("Forecast Next Values") # New Forecast button
         nav_layout.addWidget(self.add_btn)
         nav_layout.addWidget(self.remove_btn)
         nav_layout.addWidget(self.analysis_btn)
+        nav_layout.addWidget(self.forecast_btn) # Add forecast button to layout
         self.add_btn.clicked.connect(self._add_plant_dialog)
         self.remove_btn.clicked.connect(self._remove_plant)
         self.analysis_btn.clicked.connect(self._start_analysis)
+        self.forecast_btn.clicked.connect(self._forecast_next) # Connect forecast button
 
         # Progress bar for analysis
         self.progress_bar = QtWidgets.QProgressBar(self)
@@ -196,6 +355,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.serial_monitor = SerialMonitorWidget()
         self.serial_monitor.serial_send_btn.clicked.connect(self._send_serial_message)
         self.serial_monitor.serial_input.returnPressed.connect(self._send_serial_message)
+
+        # Central place to store the last read line, processed by _timer_tick
+        self._last_raw_serial_line = None
 
         # Compose the main layout
         central = QtWidgets.QWidget()
@@ -233,6 +395,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Ready. Select a port and connect to begin.")
 
         self._last_serial_line = None
+        self.is_collecting_analysis_data = False
+        self.last_known_real_time_aq = None
+        self.raw_analysis_lines = [] # Initialize to store raw d, lines
 
     def _populate_baud_rates(self):
         for br in (9600, 19200, 38400, 57600, 115200, 250000):
@@ -262,19 +427,27 @@ class MainWindow(QtWidgets.QMainWindow):
         for w in (self.port_combo, self.baud_combo, self.refresh_btn):
             w.setEnabled(False)
         self.timer.start()
-        # Send plant thresholds to Arduino after connecting
-        self._send_plant_thresholds_to_arduino()
+        # REMOVED: self._send_plant_thresholds_to_arduino() - No longer sending immediately on connect
 
-    def _send_plant_thresholds_to_arduino(self):
-        if self.ser and self.ser.is_open and self.plant_data:
-            plant = self.plant_data[self.current_plant_index]
-            # Compose the string: temp_low,temp_high,humidity_low,humidity_high,air_quality_required\n
-            msg = f"{plant.get('temperature_low',0)},{plant.get('temperature_high',0)},{plant.get('humidity_low',0)},{plant.get('humidity_high',0)},{plant.get('air_quality_score_min',0)},{plant.get('moisture_low',0)},{plant.get('moisture_high',1000)}\n"
-            print(f"[LOG] Sending to Arduino: {msg.strip()}")
+    def _send_serial_message(self, msg=None, log_to_monitor=True): # Added default for msg
+        if msg is None: # Handle case where called by button click without explicit msg
+            msg = self.serial_monitor.serial_input.text()
+            if not msg:
+                return # Don't send empty message
+            self.serial_monitor.serial_input.clear() # Clear input after getting text
+
+        if self.ser and self.ser.is_open: # Changed from self.serial_port to self.ser
             try:
-                self.ser.write(msg.encode('utf-8'))
+                final_msg = msg if msg.endswith('\\n') else msg + '\\n'
+                self.ser.write(final_msg.encode()) # Changed from self.serial_port to self.ser
+                # Consistent logging
+                print(f"[SERIAL_OUT] {final_msg.strip()}")
+                if log_to_monitor and self.serial_monitor:
+                    self.serial_monitor.append_tx(f"{final_msg.strip()}")
             except Exception as e:
-                print(f"Failed to send plant thresholds: {e}")
+                error_msg = f"Failed to send: {e}"
+                print(f"[ERROR] {error_msg}")
+                self.serial_monitor.append_error(error_msg)
 
     def _disconnect(self):
         self.timer.stop()
@@ -291,34 +464,95 @@ class MainWindow(QtWidgets.QMainWindow):
     def _timer_tick(self):
         if not (self.ser and self.ser.is_open):
             return
-        self._last_serial_line = self._read_serial_line()
-        self.update_plot(line_override=self._last_serial_line)
-        # If analysis is running, _collect_analysis_sample will use this line
 
-    def _send_serial_message(self):
-        msg = self.serial_monitor.serial_input.text().strip()
-        if msg and self.ser and self.ser.is_open:
-            try:
-                self.ser.write((msg + '\n').encode('utf-8'))
-                self.serial_monitor.append_tx(msg)
-            except Exception as e:
-                self.serial_monitor.append_error(f"Failed to send: {e}")
-        self.serial_monitor.serial_input.clear()
-
-    def update_plot(self, line_override=None):
-        if not (self.ser and self.ser.is_open):
+        line = self._read_serial_line()
+        if not line:
             return
+
+        # Centralized logging for all incoming serial data
+        print(f"[SERIAL_IN] {line}")
+        self.serial_monitor.append_rx(line)
+
+        self._last_raw_serial_line = line # Store the raw line
+
+        # Conditional processing based on application state
+        if self.is_collecting_analysis_data:
+            self._handle_analysis_data_line(line)
+        else:
+            self._handle_normal_data_line(line)
+
+    def _show_forecast_result(self, result):
+        msg = f"Forecasted value for the next period: {result[0]:.2f}"
+        # self.log_message(f"[INFO] {msg}", level='info') # Assuming log_message is defined elsewhere or remove
+        QtWidgets.QMessageBox.information(self, "Forecast Result", msg)
+
+    def _send_plant_thresholds_to_arduino(self):
+        if self.ser and self.ser.is_open:
+            if not self.plant_data or not (0 <= self.current_plant_index < len(self.plant_data)):
+                print("[INFO] No plant data or invalid index to send thresholds for.")
+                if hasattr(self, 'serial_monitor') and self.serial_monitor:
+                    self.serial_monitor.append_info("[Thresholds] No plant data to send.")
+                return
+
+            plant = self.plant_data[self.current_plant_index]
+            
+            temp_min = plant.get('temperature_low', 0)
+            temp_max = plant.get('temperature_high', 100)
+            humidity_min = plant.get('humidity_low', 0)
+            humidity_max = plant.get('humidity_high', 100)
+            air_quality_min = plant.get('air_quality_score_min', 0) # Added
+            moisture_min = plant.get('moisture_low', 0) 
+            moisture_max = plant.get('moisture_high', 1000)
+
+            # Message format: min_temp,high_temp,min_humidity,high_humidity,min_air_quality,min_moisture,high_moisture
+            msg_parts = [
+                str(temp_min),
+                str(temp_max),
+                str(humidity_min),
+                str(humidity_max),
+                str(air_quality_min),
+                str(moisture_min),
+                str(moisture_max)
+            ]
+            
+            msg = ",".join(msg_parts) + "\\\\n" # Ensure newline is correctly escaped for serial
+            
+            try:
+                self.ser.write(msg.encode())
+                log_msg = f"Thresholds: {msg.strip()}" # Use .strip() for cleaner log
+                print(f"[SERIAL_OUT] {log_msg}")
+                if self.serial_monitor:
+                    self.serial_monitor.append_tx(log_msg)
+            except Exception as e:
+                error_msg = f"Failed to send plant thresholds: {e}"
+                print(f"[ERROR] {error_msg}")
+                if self.serial_monitor:
+                    self.serial_monitor.append_error(error_msg)
+        else:
+            print("[INFO] Serial port not open. Cannot send thresholds.")
+            if hasattr(self, 'serial_monitor') and self.serial_monitor:
+                 self.serial_monitor.append_warning("[Thresholds] Serial port not open.")
+
+    # Removed update_plot method, its logic is now in _handle_normal_data_line
+
+    def _handle_normal_data_line(self, line):
+        """Processes a serial line for normal data display and actions."""
+        # Logic from former update_plot()
+        # Special handling for Arduino startup messages
+        if line == "Sensor ready.": # Send thresholds ONLY when "Sensor ready." is received
+            self._send_plant_thresholds_to_arduino()
+        elif line == "Reset data": # Handle Arduino reset confirmation
+            self.serial_monitor.append_info("[Arduino] Data reset confirmed by Arduino.")
+            QtWidgets.QMessageBox.information(self, "Reset Confirmed", 
+                "Arduino has confirmed that all stored data has been reset.")
+            return
+
+        if line.startswith("[") or "NaN" in line or line.startswith('d,'): # Corrected string literal
+            return
+
         try:
-            line = line_override if line_override is not None else self._read_serial_line()
-            if not line:
-                return
-            # Ignore lines that are not standard real-time data (e.g., lists or analysis responses)
-            if line.startswith("[") or "NaN" in line:
-                return
-            self.serial_monitor.append_rx(line)  # Show all received lines
-            print(f"[RX] {line}")  # Print only what is shown in GUI
             parts = [p.strip() for p in line.split(",")]
-            if len(parts) < 13:
+            if len(parts) < 14:
                 return
 
             temp = float(parts[0])
@@ -333,30 +567,35 @@ class MainWindow(QtWidgets.QMainWindow):
             humidity_too_low = int(parts[9])
             humidity_too_high = int(parts[10])
             soil_too_dry = int(parts[11])
-            air_quality_issue = int(parts[12])
+            soil_too_wet = int(parts[12])
+            air_quality_issue = int(parts[13])
 
-            print(f"Received: Temp={temp}, Humidity={humidity}, Moisture={moisture}, Quality={quality}, TempAvg={temp_avg}, HumAvg={humidity_avg}, MoistAvg={moisture_avg}, T_High={temp_too_high}, T_Low={temp_too_low}, H_Low={humidity_too_low}, H_High={humidity_too_high}, SoilDry={soil_too_dry}, AQ_Issue={air_quality_issue}")
+            self.last_known_real_time_aq = float(quality) 
 
-            # Update left widget with current temp/humidity
             self.temp_card.set_value(f"{temp:.1f}")
             self.hum_card.set_value(f"{humidity:.1f}")
             self.moisture_card.set_value(f"{moisture:.0f}")
             self._update_quality(quality)
 
-            # Update plot with averages
             self.t_data.append(temp_avg)
             self.h_data.append(humidity_avg)
             self.m_data.append(moisture_avg)
             x_raw = np.arange(len(self.h_data))
-            x_fine = np.linspace(x_raw[0], x_raw[-1], len(self.h_data) * 4)
-            h_interp = np.interp(x_fine, x_raw, list(self.h_data))
-            t_interp = np.interp(x_fine, x_raw, list(self.t_data))
-            m_interp = np.interp(x_fine, x_raw, list(self.m_data))
-            self.hum_curve.setData(x_fine, h_interp)
-            self.temp_curve.setData(x_fine, t_interp)
-            self.moisture_curve.setData(x_fine, m_interp)
+            
+            if len(x_raw) > 1:
+                x_fine = np.linspace(x_raw[0], x_raw[-1], len(self.h_data) * 4)
+                h_interp = np.interp(x_fine, x_raw, list(self.h_data))
+                t_interp = np.interp(x_fine, x_raw, list(self.t_data))
+                m_interp = np.interp(x_fine, x_raw, list(self.m_data))
+                self.hum_curve.setData(x_fine, h_interp)
+                self.temp_curve.setData(x_fine, t_interp)
+                self.moisture_curve.setData(x_fine, m_interp)
+            elif len(x_raw) == 1: 
+                self.hum_curve.setData([x_raw[0]], [self.h_data[-1]])
+                self.temp_curve.setData([x_raw[0]], [self.t_data[-1]])
+                self.moisture_curve.setData([x_raw[0]], [self.m_data[-1]])
 
-            # Update threshold lines from current plant
+
             plant = self.plant_data[self.current_plant_index] if self.plant_data else None
             if plant:
                 self.hum_thresh_low.setValue(plant.get('humidity_low', 0))
@@ -366,56 +605,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.moisture_thresh_low.setValue(plant.get('moisture_low', 0))
                 self.moisture_thresh_high.setValue(plant.get('moisture_high', 1000))
 
-            # Collect warnings for display
             warnings = []
-            if temp_too_high:
-                warnings.append("Temperature is too high!")
-            if temp_too_low:
-                warnings.append("Temperature is too low!")
-            if humidity_too_low:
-                warnings.append("Humidity is too low!")
-            if humidity_too_high:
-                warnings.append("Humidity is too high!")
-            if soil_too_dry:
-                warnings.append("Soil is too dry!")
-            if air_quality_issue:
-                warnings.append("Air quality issue detected!")
+            if temp_too_high: warnings.append("Temperature is too high!")
+            if temp_too_low: warnings.append("Temperature is too low!")
+            if humidity_too_low: warnings.append("Humidity is too low!")
+            if humidity_too_high: warnings.append("Humidity is too high!")
+            if soil_too_dry: warnings.append("Soil is too dry!")
+            if soil_too_wet: warnings.append("Soil is too wet!")
+            if air_quality_issue: warnings.append("Air quality issue detected!")
             self.warning_label.setText("<br>".join(warnings) if warnings else "")
 
-        except (ValueError, serial.SerialException):
-            # Only show lost connection if the line is not an analysis/unknown line
-            pass  # Ignore parse errors for unfamiliar lines
+        except (ValueError, IndexError, TypeError) as e: 
+            pass 
 
-    def _collect_analysis_sample(self):
-        if not (self.ser and self.ser.is_open):
-            self.analysis_timer.stop()
-            self.statusBar().showMessage("Serial not connected. Analysis aborted.")
-            self.analysis_progress.setVisible(False)
-            return
-        try:
-            line = self._last_serial_line
-            valid = False
-            if line:
-                parts = [p.strip() for p in line.split(",")]
-                if len(parts) >= 10:
-                    temp = float(parts[0])
-                    humidity = float(parts[1])
-                    quality = int(parts[2])
-                    self.analysis_data.append((temp, humidity, quality))
-                    valid = True
-            if valid:
-                self.analysis_elapsed += 1
-                self.analysis_progress.setValue(self.analysis_elapsed)
-            # No need to call update_plot here, as it's already called in _timer_tick
-            if self.analysis_elapsed >= self.analysis_target:
-                self.analysis_timer.stop()
-                self.analysis_progress.setVisible(False)
-                self._show_analysis_result()
-                self.statusBar().showMessage("Analysis complete.")
-        except Exception as e:
-            self.analysis_timer.stop()
-            self.analysis_progress.setVisible(False)
-            self.statusBar().showMessage(f"Analysis error: {e}")
+    # Removed _collect_analysis_sample method
 
     def _update_quality(self, score: int):
         label = {3: "Excellent", 2: "Good", 1: "Fair", 0: "Poor"}.get(score, "Unknown")
@@ -495,37 +698,72 @@ class MainWindow(QtWidgets.QMainWindow):
             self._send_plant_thresholds_to_arduino()
 
     def _update_plant_widget(self):
-        if not self.plant_data:
-            self.temp_range_label.setText("No plants available.")
-            self.hum_range_label.setText("")
-            if hasattr(self, 'aq_label'): self.aq_label.setText("")
-            if hasattr(self, 'moisture_label'): self.moisture_label.setText("")
-            self.plant_combo.setCurrentIndex(-1)
+        if not self.plant_data or not (0 <= self.current_plant_index < len(self.plant_data)): # Check if plant_data is valid and index is in range
+            self.temp_range_label.setText("Preferred Temperature: <b>N/A</b>")
+            self.hum_range_label.setText("Preferred Humidity: <b>N/A</b>")
+            if hasattr(self, 'aq_label'): self.aq_label.setText("Min Air Quality Score: <b>N/A</b>")
+            if hasattr(self, 'moisture_label'): self.moisture_label.setText("Preferred Moisture: <b>N/A</b>")
+            # Clear image and other labels if plant data is not available
+            if hasattr(self, 'plant_image_label'): self.plant_image_label.setPixmap(QtGui.QPixmap())
+            if hasattr(self, 'light_label'): self.light_label.setText("Preferred Light: <b>N/A</b>")
+            if hasattr(self, 'plant_info_label'): self.plant_info_label.setText("General Info: <b>N/A</b>")
+            self.plant_combo.setCurrentIndex(-1) # No plant selected or available
             return
-        plant = self.plant_data[self.current_plant_index]
+
+        plant = self.plant_data[self.current_plant_index] # Use self.current_plant_index
+
+        # Update image
+        if hasattr(self, 'plant_image_label'):
+            image_path = plant.get("image")
+            if image_path:
+                # Construct absolute path if image_path is relative
+                base_path = os.path.dirname(__file__)
+                abs_image_path = os.path.join(base_path, image_path) if not os.path.isabs(image_path) else image_path
+                pixmap = QtGui.QPixmap(abs_image_path) 
+                if pixmap.isNull():
+                    print(f"Warning: Image not found at {abs_image_path}. Check path.")
+                    self.plant_image_label.setText("Image not found")
+                else:
+                    self.plant_image_label.setPixmap(pixmap.scaled(200, 200, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+            else:
+                self.plant_image_label.setPixmap(QtGui.QPixmap()) # Clear if no image path
+
+        # Update temperature and humidity labels (these are always present)
         self.temp_range_label.setText(f"Preferred Temperature: <b>{plant['temperature_low']}°C - {plant['temperature_high']}°C</b>")
         self.hum_range_label.setText(f"Preferred Humidity: <b>{plant['humidity_low']}% - {plant['humidity_high']}%</b>")
-        # Add air quality and moisture if present
-        layout = self.plant_widget.layout()
+
+        layout = self.plant_widget.layout() 
+
         if not hasattr(self, 'aq_label'):
             self.aq_label = QtWidgets.QLabel()
-            if layout is not None:
-                layout.addWidget(self.aq_label)
+            if layout and isinstance(layout, QtWidgets.QGridLayout): 
+                layout.addWidget(self.aq_label, 2, 0) 
+        aq_min = plant.get('air_quality_score_min', "N/A")
+        self.aq_label.setText(f"Min Air Quality Score: <b>{aq_min}</b>")
+
         if not hasattr(self, 'moisture_label'):
             self.moisture_label = QtWidgets.QLabel()
-            if layout is not None:
-                layout.addWidget(self.moisture_label)
-        aq = plant.get('air_quality_score_min', None)
-        if aq is not None:
-            self.aq_label.setText(f"Min Air Quality Score: <b>{aq}</b>")
-        else:
-            self.aq_label.setText("")
-        moist_low = plant.get('moisture_low', None)
-        moist_high = plant.get('moisture_high', None)
-        if moist_low is not None and moist_high is not None:
+            if layout and isinstance(layout, QtWidgets.QGridLayout): 
+                layout.addWidget(self.moisture_label, 2, 1) 
+        moist_low = plant.get('moisture_low', "N/A")
+        moist_high = plant.get('moisture_high', "N/A") 
+        if moist_low != "N/A" and moist_high != "N/A":
             self.moisture_label.setText(f"Preferred Moisture: <b>{moist_low} - {moist_high}</b>")
         else:
-            self.moisture_label.setText("")
+            self.moisture_label.setText("Preferred Moisture: <b>N/A</b>")
+
+        if hasattr(self, 'light_label'):
+            light_min = plant.get("light_hours_min", "N/A")
+            light_max = plant.get("light_hours_max", "N/A")
+            if light_min != "N/A" and light_max != "N/A":
+                self.light_label.setText(f"Preferred Light: <b>{light_min} - {light_max} hrs</b>")
+            else:
+                self.light_label.setText("Preferred Light: <b>N/A</b>")
+        
+        if hasattr(self, 'plant_info_label'):
+            info = plant.get("info", "N/A")
+            self.plant_info_label.setText(f"General Info: <b>{info}</b>")
+
         self.plant_combo.setCurrentIndex(self.current_plant_index)
 
     def _remove_plant(self):
@@ -579,98 +817,250 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._update_plant_widget()
 
     def _start_analysis(self):
-        # Send 'd' command to Arduino to request data lists
-        if self.ser and self.ser.is_open:
-            try:
-                self.ser.write(b'd\n')
-                self.serial_monitor.append_tx('d')
-            except Exception as e:
-                self.serial_monitor.append_error(f"Failed to send analysis command: {e}")
-                return
-        self.statusBar().showMessage("Waiting for analysis data from Arduino...")
-        self.analysis_data_lists = []
-        self.analysis_air_quality = None
-        self.analysis_timer = QtCore.QTimer(self)
-        self.analysis_timer.timeout.connect(self._collect_analysis_lists)
-        self.analysis_timer.start(100)
-
-    def _collect_analysis_lists(self):
-        if not (self.ser and self.ser.is_open):
-            self.analysis_timer.stop()
-            self.statusBar().showMessage("Serial not connected. Analysis aborted.")
+        if self.is_collecting_analysis_data:
+            self.serial_monitor.append_info("[Analysis] Collection already in progress. Please wait.") 
+            self.statusBar().showMessage("Analysis collection already in progress.")
             return
+
+        if not (self.ser and self.ser.is_open):
+            self.serial_monitor.append_error("Cannot start analysis: Serial port not open.")
+            self.statusBar().showMessage("Cannot start analysis: Serial port not open.")
+            return
+
         try:
-            line = self._read_serial_line()
-            if not line:
-                return
-            self.serial_monitor.append_rx(line)
-            # Only process lines that look like analysis lists (contain many commas and 'nan' or '[')
-            if (line.startswith('[') and line.endswith(']')) or (line.count(',') > 20 and ('nan' in line or 'NaN' in line)):
-                # Remove brackets if present
-                line_clean = line.strip('[]')
-                # Parse list, ignore NaN/nan/empty
-                values = [float(x) for x in line_clean.split(',') if x.strip().lower() not in ('nan', '')]
-                self.analysis_data_lists.append(values)
-            elif line.isdigit() or (line.replace('.', '', 1).isdigit() and '.' in line):
-                # Air quality value (int or float)
-                self.analysis_air_quality = float(line)
-            # When we have 3 lists and air quality, process
-            if len(self.analysis_data_lists) == 3 and self.analysis_air_quality is not None:
-                self.analysis_timer.stop()
-                self._show_analysis_result_lists()
-                self.statusBar().showMessage("Analysis complete.")
+            print("[SERIAL_OUT] d")
+            self.serial_monitor.append_tx('d')
+            self.ser.write(b'd\\n')
+            
+            self.is_collecting_analysis_data = True
+            self.raw_analysis_lines = []
+            self.analysis_data_lists = []
+            self.statusBar().showMessage("Waiting for 3 'd,' prefixed analysis data lists from Arduino...") # Changed 4 to 3
+            self.serial_monitor.append_info("[Analysis] Sent 'd'. Waiting for 3 'd,' prefixed data lists.") # Changed 4 to 3
+
+            # Removed analysis_collection_timer
+
+            if hasattr(self, 'analysis_overall_timeout_timer') and self.analysis_overall_timeout_timer.isActive():
+                self.analysis_overall_timeout_timer.stop()
+            self.analysis_overall_timeout_timer = QtCore.QTimer(self)
+            self.analysis_overall_timeout_timer.setSingleShot(True)
+            self.analysis_overall_timeout_timer.timeout.connect(self._handle_analysis_collection_timeout)
+            self.analysis_overall_timeout_timer.start(20000) 
+
         except Exception as e:
-            self.analysis_timer.stop()
-            self.statusBar().showMessage(f"Analysis error: {e}")
+            error_msg = f"Failed to send analysis command: {e}"
+            print(f"[ERROR] {error_msg}")
+            self.serial_monitor.append_error(error_msg)
+            self.statusBar().showMessage(error_msg)
+            self.is_collecting_analysis_data = False
+            if hasattr(self, 'analysis_overall_timeout_timer') and self.analysis_overall_timeout_timer.isActive():
+                self.analysis_overall_timeout_timer.stop()
+
+    # read_serial_data is not directly part of the main _timer_tick flow.
+    # It's kept for potential future use but needs logging consistency if activated.
+    def read_serial_data(self):
+        if self.is_collecting_analysis_data: 
+            return
+
+        if not (self.ser and self.ser.is_open):
+            return
+
+        line = self._read_serial_line()
+        if line:
+            # If this method were actively used, ensure GUI logging matches terminal logging
+            # print(f\"[SERIAL_IN_READ_SERIAL_DATA] {line}\") # Example for terminal
+            self.serial_monitor.append_rx(line) 
+
+            if not line.startswith('d,'): 
+                try:
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) >= 14: 
+                        aq_value = float(parts[3]) 
+                        self.last_known_real_time_aq = aq_value
+                except (ValueError, IndexError):
+                    pass 
+            # self.process_serial_data(line) # This was commented out, keeping it so.
+
+    # Removed _collect_analysis_lists_step method
+
+    def _handle_analysis_data_line(self, line):
+        """Processes a serial line when in analysis data collection mode."""
+        if not self.is_collecting_analysis_data:
+            return 
+
+        if not (self.ser and self.ser.is_open):
+            self._finalize_analysis_collection(error=True, message="Serial not connected during analysis. Aborted.")
+            return
+
+        try:
+            if line.startswith('d,'):
+                self.serial_monitor.append_info(f"[Analysis] Detected raw analysis line: {line}")
+                self.raw_analysis_lines.append(line)
+                self.serial_monitor.append_info(f"[Analysis] Stored raw line #{len(self.raw_analysis_lines)}.")
+            # Non-'d,' lines are already logged by _timer_tick but ignored here for collection purposes.
+
+            if len(self.raw_analysis_lines) == 3: # Changed 4 to 3
+                self.serial_monitor.append_info("[Analysis] Collected 3 raw 'd,' lines.") # Changed 4 to 3
+                self._finalize_analysis_collection(error=False)
+
+        except Exception as e:
+            error_msg = f"[Analysis] Error during analysis line processing: {e}"
+            print(f"[ERROR] {error_msg}") 
+            self.serial_monitor.append_error(error_msg) 
+            self._finalize_analysis_collection(error=True, message=error_msg)
+
+    def _finalize_analysis_collection(self, error=False, message=""):
+        self.is_collecting_analysis_data = False # Reset collection flag FIRST
+
+        if hasattr(self, 'analysis_collection_timer') and self.analysis_collection_timer.isActive():
+            self.analysis_collection_timer.stop()
+        if hasattr(self, 'analysis_overall_timeout_timer') and self.analysis_overall_timeout_timer.isActive():
+            self.analysis_overall_timeout_timer.stop()
+
+        if error:
+            status_msg = message if message else "Analysis failed or timed out collecting raw lines."
+            self.serial_monitor.append_error(f"[Analysis] {status_msg}")
+            self.statusBar().showMessage(status_msg)
+            return
+
+        # Now parse the collected raw lines
+        self.serial_monitor.append_info("[Analysis] Proceeding to parse collected raw lines.")
+        self.analysis_data_lists = [] # Ensure it's clean before parsing
+        for i, raw_line in enumerate(self.raw_analysis_lines):
+            self.serial_monitor.append_info(f"[Analysis] Parsing raw line #{i+1}: {raw_line}")
+            line_clean = raw_line[2:].strip('[]').strip() # Remove 'd,' and brackets
+            if line_clean.endswith(','):
+                line_clean = line_clean[:-1]
+            
+            parsed_values = []
+            if not line_clean: # Handles cases like "d,[]" or "d," or "d,,,"
+                self.serial_monitor.append_warning(f"[Analysis] Raw line #{i+1} resulted in empty data after cleaning: '{raw_line}'.")
+            else:
+                for x_str in line_clean.split(','):
+                    x_str = x_str.strip()
+                    if x_str.lower() == 'nan':
+                        parsed_values.append(float('nan'))
+                    elif x_str == '':
+                        continue # Skip empty strings resulting from multiple commas e.g. val1,,val2
+                    else:
+                        try:
+                            parsed_values.append(float(x_str))
+                        except ValueError as e_parse:
+                            self.serial_monitor.append_error(f"[Analysis] Skipped non-numeric value '{x_str}' in raw line #{i+1}: {e_parse}")
+            
+            self.analysis_data_lists.append(parsed_values)
+            self.serial_monitor.append_info(f"[Analysis] Parsed list #{len(self.analysis_data_lists)} from raw line: {parsed_values}") 
+
+        if len(self.analysis_data_lists) != 3: # Changed 4 to 3
+            self.serial_monitor.append_error(f"[Analysis] Error: Expected 3 parsed lists, got {len(self.analysis_data_lists)}. Check parsing logic.") # Changed 4 to 3
+            self.statusBar().showMessage("Analysis error after parsing: Incorrect number of lists.")
+            return
+
+        self.serial_monitor.append_info("[Analysis] Successfully parsed 3 analysis lists.") # Changed 4 to 3
+        
+        aq_for_report = self.last_known_real_time_aq
+        if aq_for_report is not None:
+            self.serial_monitor.append_info(f"[Analysis] Using Air Quality from last real-time normal data: {aq_for_report:.2f}") 
+        else:
+            self.serial_monitor.append_warning("[Analysis] No real-time Air Quality data available for report.")
+        
+        self.analysis_air_quality = aq_for_report 
+
+        self.serial_monitor.append_info("[Analysis] Analysis data fully processed. Showing results dialog.")
+        self._show_analysis_result_lists()
+        self.statusBar().showMessage("Analysis complete.")
+
+    def _handle_analysis_collection_timeout(self):
+        if self.is_collecting_analysis_data: 
+            self._finalize_analysis_collection(error=True, message="Timed out waiting for 3 analysis lists.") # Changed 4 to 3
+
+    def _calculate_plant_match_details(self, plant, avg_temp, avg_hum, avg_moist, avg_aq):
+        score = 0
+        details = {
+            'name': plant['name'],
+            'score': 0,
+            'met_temp': False, 'plant_temp_low': plant['temperature_low'], 'plant_temp_high': plant['temperature_high'],
+            'met_hum': False, 'plant_hum_low': plant['humidity_low'], 'plant_hum_high': plant['humidity_high'],
+            'met_moist': False, 'plant_moist_low': plant.get('moisture_low', 0), 'plant_moist_high': plant.get('moisture_high', 1000),
+            'met_aq': False, 'plant_aq_min': plant.get('air_quality_score_min', 0)
+        }
+
+        if plant['temperature_low'] <= avg_temp <= plant['temperature_high']:
+            score += 1
+            details['met_temp'] = True
+        
+        if plant['humidity_low'] <= avg_hum <= plant['humidity_high']:
+            score += 1
+            details['met_hum'] = True
+
+        if plant.get('moisture_low', 0) <= avg_moist <= plant.get('moisture_high', 1000):
+            score += 1
+            details['met_moist'] = True
+        
+        if avg_aq >= plant.get('air_quality_score_min', 0):
+            score += 1
+            details['met_aq'] = True
+        
+        details['score'] = score
+        return details
 
     def _show_analysis_result_lists(self):
-        if len(self.analysis_data_lists) != 3 or self.analysis_air_quality is None:
-            QtWidgets.QMessageBox.information(self, "Analysis Result", "Incomplete data received.")
+        if len(self.analysis_data_lists) < 3: 
+            QtWidgets.QMessageBox.information(self, "Analysis Result", f"Incomplete data received for report. Expected 3 lists, got {len(self.analysis_data_lists)}.")
+            self.progress_bar.hide()
             return
-        temps, hums, moistures = self.analysis_data_lists
-        # Filter out empty lists
-        temps = [v for v in temps if isinstance(v, (int, float))]
-        hums = [v for v in hums if isinstance(v, (int, float))]
-        moistures = [v for v in moistures if isinstance(v, (int, float))]
-        if not temps or not hums or not moistures:
-            QtWidgets.QMessageBox.information(self, "Analysis Result", "No valid data received.")
+        
+        if self.analysis_air_quality is None: # Should be float or int
+            QtWidgets.QMessageBox.information(self, "Analysis Result", "Air quality data for report is missing.")
+            self.progress_bar.hide()
             return
+
+        temps_raw, hums_raw, moistures_raw = self.analysis_data_lists[0], self.analysis_data_lists[1], self.analysis_data_lists[2]
+        
+        temps = [v for v in temps_raw if isinstance(v, (int, float)) and not np.isnan(v)]
+        hums = [v for v in hums_raw if isinstance(v, (int, float)) and not np.isnan(v)]
+        moistures = [v for v in moistures_raw if isinstance(v, (int, float)) and not np.isnan(v)]
+
+        if not temps or not hums or not moistures: 
+            QtWidgets.QMessageBox.information(self, "Analysis Result", "No valid numeric data in the first three lists for analysis report after filtering NaNs and non-numeric values.")
+            self.progress_bar.hide()
+            return
+
         avg_temp = sum(temps) / len(temps)
         avg_hum = sum(hums) / len(hums)
         avg_moist = sum(moistures) / len(moistures)
-        avg_aq = round(self.analysis_air_quality)
-        # Find suitable plants
-        suitable = []
+        
+        # Ensure avg_aq is a number before rounding, handle if it's None or non-numeric string
+        try:
+            avg_aq = round(float(self.analysis_air_quality))
+        except (ValueError, TypeError):
+             QtWidgets.QMessageBox.warning(self, "Analysis Error", "Invalid Air Quality value for analysis.")
+             self.progress_bar.hide()
+             return
+
+        suitable_plants = []
+        all_plant_match_details = []
+
         for plant in self.plant_data:
-            if (plant['temperature_low'] <= avg_temp <= plant['temperature_high'] and
-                plant['humidity_low'] <= avg_hum <= plant['humidity_high'] and
-                plant.get('moisture_low', 0) <= avg_moist <= plant.get('moisture_high', 1000) and
-                avg_aq >= plant.get('air_quality_score_min', 0)):
-                suitable.append(plant['name'])
-        # Show result in a table
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("Analysis Result")
-        layout = QtWidgets.QVBoxLayout(dialog)
-        summary = QtWidgets.QLabel(f"<b>Average Temp:</b> {avg_temp:.1f}°C   <b>Average Humidity:</b> {avg_hum:.1f}%   <b>Average Moisture:</b> {avg_moist:.1f}   <b>Air Quality:</b> {avg_aq}")
-        layout.addWidget(summary)
-        table = QtWidgets.QTableWidget(dialog)
-        table.setColumnCount(1)
-        table.setHorizontalHeaderLabels(["Suitable Plants"])
-        table.setRowCount(len(suitable))
-        for i, name in enumerate(suitable):
-            table.setItem(i, 0, QtWidgets.QTableWidgetItem(name))
-        table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(table)
-        if not suitable:
-            layout.addWidget(QtWidgets.QLabel("<b>No plants can survive under these conditions.</b>"))
-        btn = QtWidgets.QPushButton("OK", dialog)
-        btn.clicked.connect(dialog.accept)
-        layout.addWidget(btn)
+            match_details = self._calculate_plant_match_details(plant, avg_temp, avg_hum, avg_moist, avg_aq)
+            all_plant_match_details.append(match_details)
+            if match_details['score'] == 4: # All conditions met
+                suitable_plants.append(plant['name'])
+        
+        closest_plants_details_for_dialog = []
+        if not suitable_plants and all_plant_match_details:
+            # Sort by score (descending), then by name (ascending) as a tie-breaker
+            all_plant_match_details.sort(key=lambda x: (-x['score'], x['name']))
+            closest_plants_details_for_dialog = all_plant_match_details[:3]
+
+        # Show the new detailed results dialog
+        dialog = AnalysisResultsDialog(
+            avg_temp, avg_hum, avg_moist, avg_aq,
+            temps_raw, hums_raw, moistures_raw,
+            suitable_plants, closest_plants_details_for_dialog, self
+        )
         dialog.exec_()
 
-        # Hide progress bar after analysis
         self.progress_bar.hide()
 
     def _autoscale_plots(self):
@@ -682,3 +1072,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.moisture_plot.enableAutoRange(axis="x", enable=True)
         self.env_plot.enableAutoRange(axis="y", enable=True)
         self.env_plot.enableAutoRange(axis="x", enable=True)
+
+    def _forecast_next(self):
+        # Use last N points for each series
+        N = 20
+        def forecast(data):
+            y = np.array(list(data)[-N:])
+            X = np.arange(len(y)).reshape(-1, 1)
+            if len(y) < 2 or np.all(y == y[0]): # Check if all elements are the same
+                return y[-1] if len(y) > 0 else 0 # Return last element or 0 if empty
+            model = LinearRegression().fit(X, y)
+            next_x = np.array([[len(y)]])
+            return float(model.predict(next_x)[0])
+        temp_pred = forecast(self.t_data)
+        hum_pred = forecast(self.h_data)
+        moist_pred = forecast(self.m_data)
+        msg = (f"Forecasted next values:\n"
+               f"Temperature: {temp_pred:.2f} °C\n"
+               f"Humidity: {hum_pred:.2f} %\n"
+               f"Moisture: {moist_pred:.2f}")
+        QtWidgets.QMessageBox.information(self, "Forecast Result", msg)
