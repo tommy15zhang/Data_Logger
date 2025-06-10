@@ -49,6 +49,8 @@ Data will be sent from the Arduino approximately every 1-2 seconds to the comput
     Serial.print(",");
     Serial.print(soilTooDry);
     Serial.print(",");
+    Serial.print(soilTooWet);
+    Serial.print(",");
     Serial.println(airQualityIssue);
 
 ```
